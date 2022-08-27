@@ -18,6 +18,8 @@ def is_page_id(page_id):
 
 def parse_infobox_data(content):
     data = {}
+    if not content:
+        return data
     is_infobox = False
     for line in content.splitlines():
         if not line:
@@ -34,6 +36,9 @@ def parse_infobox_data(content):
             if value:
                 data[key.strip()] = value.strip()
 
+
+def is_link(link):
+    return link.startswith('[[') and link.endswith(']]')
 
 def parse_link_title(link):
     target, sep, title = link.strip('[]').partition('|')
@@ -107,6 +112,10 @@ class WikiPage:
     def content(self):
         if 'revisions' in self._data:
             return self._data['revisions'][0]['slots']['main']['*']
+
+    @property
+    def infobox(self):
+        return parse_infobox_data(self.content)
 
     @property
     def coordinates(self):

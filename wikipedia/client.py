@@ -3,7 +3,8 @@ import urllib.parse
 
 import requests
 
-from .core import is_page_id, WikiPage
+from .core import WikiPage
+from .core import is_page_id, is_link, parse_link_target
 from .cache import WikiCache
 
 
@@ -263,6 +264,9 @@ class WikiClient:
         if title.startswith('https://'):
             # TODO: extract lang from URL and compare with current client's lang
             title = title[title.find('/wiki/')+6 :]
+        if is_link(title):
+            # Follow a link target
+            title = parse_link_target(title)
         title = urllib.parse.unquote(title)
         return title
 
