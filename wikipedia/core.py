@@ -16,27 +16,6 @@ def is_page_id(page_id):
     return False
 
 
-def parse_infobox_data(content):
-    data = {}
-    if not content:
-        return data
-    is_infobox = False
-    for line in content.splitlines():
-        if not line:
-            continue
-        if is_infobox and line == '}}':
-            return data
-        if not is_infobox and line.startswith('{{'):
-            is_infobox = True
-            continue
-        if is_infobox and line.startswith(' |'):
-            line = line.lstrip('| ')
-            key, sep, value = line.partition(' = ')
-            value = value.strip()
-            if value:
-                data[key.strip()] = value.strip()
-
-
 def is_link(link):
     return link.startswith('[[') and link.endswith(']]')
 
@@ -49,10 +28,50 @@ def parse_link_target(link):
     return target
 
 
+class Infobox:
+
+    def __init__(self, name, data):
+        self.template_name = name
+        self._data = data
+
+    def __getattr__(self, key):
+        return self._data.get(key)
+
+    def __getitem__(self, key):
+        return self._data.get(key)
+
+    @staticmethod
+    def parse(content):
+        template_name = ''
+        data = {}
+        if not content:
+            return
+        is_infobox = False
+        for line in content.splitlines():
+            if not line:
+                continue
+            if is_infobox and line == '}}':
+                return Infobox(template_name, data)
+            if not is_infobox and line.startswith('{{'):
+                is_infobox = True
+                template_name = line[2:]
+                continue
+            if is_infobox and line.startswith(' |'):
+                line = line.lstrip('| ')
+                key, sep, value = line.partition(' = ')
+                value = value.strip()
+                if value:
+                    data[key.strip()] = value.strip()
+
+    def __repr__(self):
+        return f'<Infobox "{self.template_name}" data={self._data}>'
+
+
 class WikiPage:
 
     def __init__(self, data):
         self._data = data
+        self._infobox = None
 
     def load(self, client, cache=False):
         page = client.page(self.page_id, cache=cache)
@@ -109,13 +128,19 @@ class WikiPage:
         return self._data.get('extract')
 
     @property
+    def has_content(self):
+        return 'revisions' in self._data
+
+    @property
     def content(self):
         if 'revisions' in self._data:
             return self._data['revisions'][0]['slots']['main']['*']
 
     @property
     def infobox(self):
-        return parse_infobox_data(self.content)
+        if self._infobox is None and self.has_content:
+            self._infobox = Infobox.parse(self.content)
+        return self._infobox
 
     @property
     def coordinates(self):

@@ -229,7 +229,7 @@ class WikiClient:
             if load is None:
                 load = self._load
             if load:
-                return self.page(page)
+                page = self.page(page)
             yield page
 
     def _get_pages(self, results, load=None):
