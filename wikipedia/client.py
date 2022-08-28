@@ -103,7 +103,7 @@ class Results:
 
     @property
     def status(self):
-        return self.response.status
+        return self.response.status_code
 
     @property
     def reason(self):
@@ -144,11 +144,16 @@ class WikiClient:
             api_url,
             params=params,
         )
-        return Results(
+        results = Results(
             api_url,
             params,
             response,
         )
+        log.debug(
+            'API: %s - %s',
+            results.request.url, results.status,
+        )
+        return results
 
     def _continued(self, results):
         yield results
@@ -163,20 +168,21 @@ class WikiClient:
 
     def query_pages(self, **params):
         params.update(QUERY_RESOLVE_REDIRECTS)
-        params.update(QUERY_PAGES_FULL)
         # NOTE: result = {'query': {'pages': {} }}
         return self._request(params)
 
-    def query_page_ids(self, *page_ids):
+    def query_page_ids(self, params, *page_ids):
         return self.query_pages(
             pageids='|'.join([
                 str(page_id) for page_id in page_ids
             ]),
+            **params,
         )
 
-    def query_page_titles(self, *titles):
+    def query_page_titles(self, params, *titles):
         return self.query_pages(
             titles='|'.join(titles),
+            **params,
         )
 
     def query_list_category_members(self, category, cmtype=None):
@@ -217,42 +223,40 @@ class WikiClient:
     def query_category_subcategories(self, category):
         return self.query_category_members(category, 'subcat')
 
-    def _pages_gen(self, pages_data, load=None, cache=False):
+    def _pages_gen(self, pages_data, load=None):
         for data in pages_data:
             page = WikiPage(data)
             if load is None:
                 load = self._load
             if load:
-                loaded_page = self.page(page.page_id, cache=cache)
-                if loaded_page:
-                    page.upate(loaded_page)
+                return self.page(page)
             yield page
 
-    def _get_pages(self, results, load=None, cache=False):
+    def _get_pages(self, results, load=None):
         for results in self._continued(results):
             yield from self._pages_gen(
                 results.data['query'].get('pages', {}).values(),
-                load, cache,
+                load,
             )
 
-    def _get_categorymembers(self, results, load=None, cache=False):
+    def _get_categorymembers(self, results, load=None):
         for results in self._continued(results):
             yield from self._pages_gen(
                 results.data['query'].get('categorymembers', []),
-                load, cache,
+                load,
             )
 
-    def category_members(self, category, load=None, cache=False):
+    def category_members(self, category, load=None):
         results = self.query_category_members(category.page_id or category.title)
-        yield from self._get_pages(results, load, cache)
+        yield from self._get_pages(results, load)
 
-    def category_pages(self, category, load=None, cache=False):
+    def category_pages(self, category, load=None):
         results = self.query_category_pages(category.page_id or category.title)
-        yield from self._get_pages(results, load, cache)
+        yield from self._get_pages(results, load)
 
-    def category_subcategories(self, category, load=None, cache=False):
+    def category_subcategories(self, category, load=None):
         results = self.query_category_subcategories(category.page_id or category.title)
-        yield from self._get_pages(results, load, cache)
+        yield from self._get_pages(results, load)
 
     def _get_page_id(self, page):
         if isinstance(page, WikiPage):
@@ -270,26 +274,51 @@ class WikiClient:
         title = urllib.parse.unquote(title)
         return title
 
-    def page(self, page, cache=False):
-        page_id = self._get_page_id(page)
+    def _get_revision_id(self, page):
+        if isinstance(page, WikiPage):
+            return page.revision_id
 
-        if cache:
-            # TODO: If WikiPage check revision_id
-            cached_page = self._cache.get(page_id or page)
-            if cached_page:
+    def page(self, page):
+        page_id = self._get_page_id(page)
+        if not page_id:
+            title = self._get_title(page)
+        else:
+            title = None
+        revision_id = self._get_revision_id(page)
+
+        cached_page = self._cache.get(
+            self.lang, page_id, title,
+        )
+
+        if revision_id and cached_page:
+            if revision_id > cached_page.revision_id:
+                # We've got older version, need to update
+                cached_page = None
+            else:
+                # No need to call API, we've got latest version
                 return cached_page
 
-        if page_id:
-            results = self.query_page_ids(page_id)
+        if cached_page:
+            params = QUERY_PAGES_MINIMAL
         else:
-            title = self._get_title(page)
-            results = self.query_page_titles(title)
-        for page in self._get_pages(results):
-            if cache:
-                self._cache.insert(page)
-            return page
+            params = QUERY_PAGES_FULL
 
-    def parse_page(self, page):
+        if page_id:
+            results = self.query_page_ids(params, page_id)
+        else:
+            results = self.query_page_titles(params, title)
+
+        for page in self._get_pages(results):
+            if not cached_page:
+                self._cache.insert(page)
+                return page
+            elif cached_page.revision_id < page.revision_id:
+                # Got MINIMAL params, need to get page with FULL params
+                return self.page(page)
+            else:
+                return cached_page
+
+    def parse(self, page):
         # TODO: Do I need it? Might need some reworking
         # https://www.mediawiki.org/wiki/API:Parsing_wikitext
         # https://www.mediawiki.org/w/api.php?action=help&modules=parse
