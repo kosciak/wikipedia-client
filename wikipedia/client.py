@@ -223,40 +223,40 @@ class WikiClient:
     def query_category_subcategories(self, category):
         return self.query_category_members(category, 'subcat')
 
-    def _pages_gen(self, pages_data, load=None):
+    def _pages_gen(self, pages_data, load=None, check_updates=True):
         for data in pages_data:
             page = WikiPage(data)
             if load is None:
                 load = self._load
             if load:
-                page = self.page(page)
+                page = self.page(page, check_updates=check_updates)
             yield page
 
-    def _get_pages(self, results, load=None):
+    def _get_pages(self, results, load=None, check_updates=True):
         for results in self._continued(results):
             yield from self._pages_gen(
                 results.data['query'].get('pages', {}).values(),
-                load,
+                load, check_updates,
             )
 
-    def _get_categorymembers(self, results, load=None):
+    def _get_categorymembers(self, results, load=None, check_updates=True):
         for results in self._continued(results):
             yield from self._pages_gen(
                 results.data['query'].get('categorymembers', []),
-                load,
+                load, check_updates,
             )
 
-    def category_members(self, category, load=None):
+    def category_members(self, category, load=None, check_updates=True):
         results = self.query_category_members(category.page_id or category.title)
-        yield from self._get_pages(results, load)
+        yield from self._get_pages(results, load, check_updates)
 
-    def category_pages(self, category, load=None):
+    def category_pages(self, category, load=None, check_updates=True):
         results = self.query_category_pages(category.page_id or category.title)
-        yield from self._get_pages(results, load)
+        yield from self._get_pages(results, load, check_updates)
 
-    def category_subcategories(self, category, load=None):
+    def category_subcategories(self, category, load=None, check_updates=True):
         results = self.query_category_subcategories(category.page_id or category.title)
-        yield from self._get_pages(results, load)
+        yield from self._get_pages(results, load, check_updates)
 
     def _get_page_id(self, page):
         if isinstance(page, WikiPage):
@@ -278,7 +278,7 @@ class WikiClient:
         if isinstance(page, WikiPage):
             return page.revision_id
 
-    def page(self, page):
+    def page(self, page, check_updates=True):
         page_id = self._get_page_id(page)
         if not page_id:
             title = self._get_title(page)
@@ -289,6 +289,8 @@ class WikiClient:
         cached_page = self._cache.get(
             self.lang, page_id, title,
         )
+        if not check_updates:
+            return cached_page
 
         if revision_id and cached_page:
             if revision_id > cached_page.revision_id:
