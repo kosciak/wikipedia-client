@@ -1,4 +1,5 @@
 import logging
+import re
 
 import dateutil.parser
 
@@ -6,6 +7,15 @@ from ..geojson import Coordinates
 
 
 log = logging.getLogger('wikipedia.core')
+
+
+WIKI_LINK_PATTERN = re.compile(
+    '\[\[' +
+        '(?P<title>[^#|\]]+)?' +
+        '(?:#(?P<anchor>[^|\]]+))?' +
+        '(?:\|(?P<label>[^\]]+))?' +
+    '\]\]'
+)
 
 
 def is_page_id(page_id):
@@ -17,32 +27,79 @@ def is_page_id(page_id):
 
 
 def is_link(link):
-    return link.startswith('[[') and link.endswith(']]')
+    return link.startswith('[[') and link.endswith(']]') and link.rfind('[[') == 0
 
+# TODO: Rename to parse_link_text
 def parse_link_title(link):
     target, sep, title = link.strip('[]').partition('|')
     return title or target
 
 def parse_link_target(link):
     target, sep, title = link.strip('[]').partition('|')
+    # TODO: Remove #anchor
     return target
+
+
+class WikiLink:
+
+    def __init__(self, title=None, anchor=None, label=None):
+        self.title = title
+        self.anchor = anchor
+        # TODO: https://en.wikipedia.org/wiki/Help:Pipe_trick
+        self.label = label
+
+    @property
+    def target(self):
+        if self.anchor:
+            return f'{self.title or ""}#{self.anchor}'
+        else:
+            return self.title
+
+    @property
+    def text(self):
+        return self.label or self.target
+
+    @staticmethod
+    def parse(link):
+        if not is_link(link):
+            return
+        match = WIKI_LINK_PATTERN.match(link)
+        if match:
+            return WikiLink(**match.groupdict())
+
+    @staticmethod
+    def find_all(wikitext):
+        for match in WIKI_LINK_PATTERN.finditer(wikitext):
+            yield WikiLink(**match.groupdict())
+
+    def __repr__(self):
+        if self.label:
+            return f'<{self.__class__.__name__} target="{self.target}", label="{self.label}>'
+        else:
+            return f'<{self.__class__.__name__} target="{self.target}">'
 
 
 class Infobox:
 
     def __init__(self, name, data):
-        self.template_name = name
-        self._data = data
-
-    def __getattr__(self, key):
-        return self._data.get(key)
+        self.name = name
+        self.data = data
 
     def __getitem__(self, key):
-        return self._data.get(key)
+        return self.data.get(key)
+
+    def __len__(self):
+        return len(self.data)
+
+    def get(self, key):
+        return self.data.get(key)
+
+    def keys(self):
+        return self.data.keys()
 
     @staticmethod
     def parse(content):
-        template_name = ''
+        name = ''
         data = {}
         if not content:
             return
@@ -51,10 +108,10 @@ class Infobox:
             if not line:
                 continue
             if is_infobox and line == '}}':
-                return Infobox(template_name, data)
+                return Infobox(name, data)
             if not is_infobox and line.startswith('{{'):
                 is_infobox = True
-                template_name = line[2:]
+                name = line[2:]
                 continue
             if is_infobox and line.startswith(' |'):
                 line = line.lstrip('| ')
@@ -64,7 +121,7 @@ class Infobox:
                     data[key.strip()] = value.strip()
 
     def __repr__(self):
-        return f'<Infobox "{self.template_name}" data={self._data}>'
+        return f'<Infobox name="{self.name}" data={self.data}>'
 
 
 class WikiPage:

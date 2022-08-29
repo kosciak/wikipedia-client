@@ -3,8 +3,8 @@ import urllib.parse
 
 import requests
 
-from .core import WikiPage
-from .core import is_page_id, is_link, parse_link_target
+from .core import WikiPage, WikiLink
+from .core import is_page_id, is_link
 from .cache import WikiCache
 
 
@@ -84,6 +84,7 @@ QUERY_GENERATOR_CATEGORYMEMBERS = {
 
 
 # https://github.com/goldsmith/Wikipedia/blob/master/wikipedia/wikipedia.py
+# https://github.com/5j9/wikitextparser
 
 
 class Results:
@@ -268,9 +269,11 @@ class WikiClient:
         if title.startswith('https://'):
             # TODO: extract lang from URL and compare with current client's lang
             title = title[title.find('/wiki/')+6 :]
-        if is_link(title):
-            # Follow a link target
-            title = parse_link_target(title)
+        elif is_link(title):
+            # Follow a links title
+            link = WikiLink.parse(title)
+            if link:
+                title = link.title
         title = urllib.parse.unquote(title)
         return title
 
