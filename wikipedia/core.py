@@ -1,3 +1,4 @@
+import collections
 import logging
 import re
 
@@ -27,17 +28,16 @@ def is_page_id(page_id):
 
 
 def is_link(link):
+    if not link:
+        return False
     return link.startswith('[[') and link.endswith(']]') and link.rfind('[[') == 0
 
-# TODO: Rename to parse_link_text
-def parse_link_title(link):
-    target, sep, title = link.strip('[]').partition('|')
-    return title or target
 
-def parse_link_target(link):
-    target, sep, title = link.strip('[]').partition('|')
-    # TODO: Remove #anchor
-    return target
+def parse_text(wikitext):
+    if is_link(wikitext):
+        return WikiLink.parse(wikitext).text
+    else:
+        return wikitext
 
 
 class WikiLink:
@@ -59,16 +59,16 @@ class WikiLink:
     def text(self):
         return self.label or self.target
 
-    @staticmethod
-    def parse(link):
+    @classmethod
+    def parse(cls, link):
         if not is_link(link):
             return
         match = WIKI_LINK_PATTERN.match(link)
         if match:
             return WikiLink(**match.groupdict())
 
-    @staticmethod
-    def find_all(wikitext):
+    @classmethod
+    def find_all(cls, wikitext):
         for match in WIKI_LINK_PATTERN.finditer(wikitext):
             yield WikiLink(**match.groupdict())
 
@@ -85,11 +85,11 @@ class Infobox:
         self.name = name
         self.data = data
 
+    def __contains__(self, key):
+        return key in self.data
+
     def __getitem__(self, key):
         return self.data.get(key)
-
-    def __len__(self):
-        return len(self.data)
 
     def get(self, key):
         return self.data.get(key)
@@ -97,37 +97,128 @@ class Infobox:
     def keys(self):
         return self.data.keys()
 
-    @staticmethod
-    def parse(content):
+    def __len__(self):
+        return len(self.data)
+
+    @classmethod
+    def parse(cls, content):
         name = ''
         data = {}
         if not content:
             return
         is_infobox = False
+        content = content.replace('}}{{', '}}\n{{')
         for line in content.splitlines():
+            line = line.strip()
             if not line:
                 continue
-            if is_infobox and line == '}}':
+            if is_infobox and line.startswith('}}'):
                 return Infobox(name, data)
             if not is_infobox and line.startswith('{{'):
-                is_infobox = True
+                if line.endswith('}}'):
+                    # Just a template, not infobox
+                    continue
+                if not 'infobox' in line.lower():
+                    # It seems that all infobox names should containe "infobox" or "Infobox"
+                    continue
                 name = line[2:]
+                is_infobox = True
                 continue
-            if is_infobox and line.startswith(' |'):
+            if is_infobox and line.startswith('|'):
                 line = line.lstrip('| ')
-                key, sep, value = line.partition(' = ')
+                key, sep, value = line.partition('=')
                 value = value.strip()
                 if value:
-                    data[key.strip()] = value.strip()
+                    data[key.strip()] = value
 
     def __repr__(self):
-        return f'<Infobox name="{self.name}" data={self.data}>'
+        return f'<{self.__class__.__name__} name="{self.name}" data={self.data}>'
+
+
+class Template:
+
+    def __init__(self, name):
+        self.name = name
+        self.named_params = {}
+        self.numbered_params = []
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self.named_params.get(
+                str(key),
+                self.numbered_params[key-1],
+            )
+        if isinstance(key, slice):
+            raise TypeError('Slice not supported!')
+        else:
+            return self.named_params[key]
+
+    def get(self, key):
+        return self.named_params.get(key)
+
+    def __contains__(self, key):
+        return key in self.named_params
+
+    def keys(self):
+        return self.named_params.keys()
+
+    def parse_params(self, *params):
+        for param in params:
+            name, is_named, value = param.partition('=')
+            name = name.strip()
+            if is_named:
+                value = value.strip()
+                if value:
+                    self.named_params[name] = value
+            else:
+                self.numbered_params.append(name)
+
+    @classmethod
+    def find_all(cls, content):
+        # NOTE: Using deque() so we can push back part of line
+        lines = collections.deque(
+            line.strip() for line
+            in content.splitlines()
+            if line.strip()
+        )
+        lines.reverse()
+        template = None
+        while lines:
+            line = lines.pop()
+            if line.startswith('{{'):
+                # NOTE: Fix {{template|...}}{{another_template
+                end = line.find('}}')
+                start = line.find('{{', 1)
+                if start > end:
+                    lines.append(line[start:])
+                    line = line[:start]
+
+                name = line.strip('{}')
+                name, has_params, params = name.partition('|')
+                template = Template(name)
+                if has_params:
+                    # TODO: Messes up pipes in links or templates!
+                    template.parse_params(*params.split('|'))
+            if template:
+                if line.startswith('|'):
+                    template.parse_params(line[1:])
+                elif line.startswith('}}') or line.endswith('}}'):
+                    yield template
+                    template = None
+
+    def __repr__(self):
+        return f'<{self.__class__.__name__} name="{self.name}">'
 
 
 class WikiPage:
 
     def __init__(self, data):
         self._data = data
+        self._templates = None
+        self._infobox = None
+
+    def _clear_cached(self):
+        self._templates = None
         self._infobox = None
 
     def load(self, client, cache=False):
@@ -136,6 +227,7 @@ class WikiPage:
 
     def update(self, other):
         self._data.update(other._data)
+        self._clear_cached()
 
     @property
     def page_id(self):
@@ -177,6 +269,11 @@ class WikiPage:
         return self._data.get('fullurl')
 
     @property
+    def is_disambiguation(self):
+        if 'pageprops' in self._data:
+            return 'disambiguation' in self._data['pageprops']
+
+    @property
     def categories(self):
         return [WikiPage(category) for category in self._data.get('categories', [])]
 
@@ -194,9 +291,19 @@ class WikiPage:
             return self._data['revisions'][0]['slots']['main']['*']
 
     @property
+    def templates(self):
+        if self._templates is None and self.has_content:
+            self._templates = list(Template.find_all(self.content))
+        return self._templates
+
+    @property
     def infobox(self):
         if self._infobox is None and self.has_content:
-            self._infobox = Infobox.parse(self.content)
+            templates = self.templates or []
+            for template in templates:
+                if 'infobox' in template.name.lower():
+                    self._infobox = template
+                    break
         return self._infobox
 
     @property

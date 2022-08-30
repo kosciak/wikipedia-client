@@ -292,7 +292,7 @@ class WikiClient:
         cached_page = self._cache.get(
             self.lang, page_id, title,
         )
-        if not check_updates:
+        if cached_page and not check_updates:
             return cached_page
 
         if revision_id and cached_page:
