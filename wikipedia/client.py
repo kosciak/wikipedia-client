@@ -119,11 +119,12 @@ class WikiClient:
 
     API_URL = 'https://%s.wikipedia.org/w/api.php'
 
-    def __init__(self, lang, load=False, cache_dir=None):
+    def __init__(self, lang, load=False, check_updates=False, cache_dir=None):
         self._lang = None
         self._api_url = None
         self.set_lang(lang)
         self._load = load
+        self.check_updates = check_updates
         self._cache = WikiCache(cache_dir)
         self._session = requests.Session()
 
@@ -224,7 +225,7 @@ class WikiClient:
     def query_category_subcategories(self, category):
         return self.query_category_members(category, 'subcat')
 
-    def _pages_gen(self, pages_data, load=None, check_updates=True):
+    def _pages_gen(self, pages_data, load=None, check_updates=None):
         for data in pages_data:
             page = WikiPage(data)
             if load is None:
@@ -233,29 +234,35 @@ class WikiClient:
                 page = self.page(page, check_updates=check_updates)
             yield page
 
-    def _get_pages(self, results, load=None, check_updates=True):
+    def _get_pages(self, results, load=None, check_updates=None):
         for results in self._continued(results):
+            if not 'query' in results.data:
+                # no members returned
+                continue
             yield from self._pages_gen(
                 results.data['query'].get('pages', {}).values(),
                 load, check_updates,
             )
 
-    def _get_categorymembers(self, results, load=None, check_updates=True):
+    def _get_categorymembers(self, results, load=None, check_updates=None):
         for results in self._continued(results):
+            if not 'query' in results.data:
+                # no members returned
+                continue
             yield from self._pages_gen(
                 results.data['query'].get('categorymembers', []),
                 load, check_updates,
             )
 
-    def category_members(self, category, load=None, check_updates=True):
+    def category_members(self, category, load=None, check_updates=None):
         results = self.query_category_members(category.page_id or category.title)
         yield from self._get_pages(results, load, check_updates)
 
-    def category_pages(self, category, load=None, check_updates=True):
+    def category_pages(self, category, load=None, check_updates=None):
         results = self.query_category_pages(category.page_id or category.title)
         yield from self._get_pages(results, load, check_updates)
 
-    def category_subcategories(self, category, load=None, check_updates=True):
+    def category_subcategories(self, category, load=None, check_updates=None):
         results = self.query_category_subcategories(category.page_id or category.title)
         yield from self._get_pages(results, load, check_updates)
 
@@ -282,7 +289,7 @@ class WikiClient:
         if isinstance(page, WikiPage):
             return page.revision_id
 
-    def page(self, page, check_updates=True):
+    def page(self, page, check_updates=None):
         page_id = self._get_page_id(page)
         if not page_id:
             title = self._get_title(page)
@@ -293,6 +300,8 @@ class WikiClient:
         cached_page = self._cache.get(
             self.lang, page_id, title,
         )
+        if check_updates is None:
+            check_updates = self.check_updates
         if cached_page and not check_updates:
             return cached_page
 
