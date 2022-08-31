@@ -18,6 +18,16 @@ WIKI_LINK_PATTERN = re.compile(
     '\]\]'
 )
 
+NESTED_TAGS_START = {
+    '[[',
+    '{{',
+}
+
+NESTED_TAGS_END = {
+    ']]',
+    '}}',
+}
+
 
 def is_page_id(page_id):
     if isinstance(page_id, int):
@@ -79,62 +89,6 @@ class WikiLink:
             return f'<{self.__class__.__name__} target="{self.target}">'
 
 
-class Infobox:
-
-    def __init__(self, name, data):
-        self.name = name
-        self.data = data
-
-    def __contains__(self, key):
-        return key in self.data
-
-    def __getitem__(self, key):
-        return self.data.get(key)
-
-    def get(self, key):
-        return self.data.get(key)
-
-    def keys(self):
-        return self.data.keys()
-
-    def __len__(self):
-        return len(self.data)
-
-    @classmethod
-    def parse(cls, content):
-        name = ''
-        data = {}
-        if not content:
-            return
-        is_infobox = False
-        content = content.replace('}}{{', '}}\n{{')
-        for line in content.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            if is_infobox and line.startswith('}}'):
-                return Infobox(name, data)
-            if not is_infobox and line.startswith('{{'):
-                if line.endswith('}}'):
-                    # Just a template, not infobox
-                    continue
-                if not 'infobox' in line.lower():
-                    # It seems that all infobox names should containe "infobox" or "Infobox"
-                    continue
-                name = line[2:]
-                is_infobox = True
-                continue
-            if is_infobox and line.startswith('|'):
-                line = line.lstrip('| ')
-                key, sep, value = line.partition('=')
-                value = value.strip()
-                if value:
-                    data[key.strip()] = value
-
-    def __repr__(self):
-        return f'<{self.__class__.__name__} name="{self.name}" data={self.data}>'
-
-
 class Template:
 
     def __init__(self, name):
@@ -162,8 +116,23 @@ class Template:
     def keys(self):
         return self.named_params.keys()
 
-    def parse_params(self, *params):
-        for param in params:
+    @classmethod
+    def split_params(cls, wikitext):
+        start = 0
+        nested_level = 0
+        for i in range(len(wikitext)):
+            sequence = wikitext[i:i+2]
+            if sequence in NESTED_TAGS_START:
+                nested_level += 1
+            elif sequence in NESTED_TAGS_END:
+                nested_level -= 1
+            if wikitext[i] == '|' and not nested_level:
+                yield wikitext[start:i]
+                start = i+1
+        yield wikitext[start:]
+
+    def parse_params(self, params):
+        for param in self.split_params(params):
             name, is_named, value = param.partition('=')
             name = name.strip()
             if is_named:
@@ -175,7 +144,7 @@ class Template:
 
     @classmethod
     def find_all(cls, content):
-        # NOTE: Using deque() so we can push back part of line
+        # NOTE: Using deque() so we can push back part of line and parse as new line
         lines = collections.deque(
             line.strip() for line
             in content.splitlines()
@@ -197,8 +166,7 @@ class Template:
                 name, has_params, params = name.partition('|')
                 template = Template(name)
                 if has_params:
-                    # TODO: Messes up pipes in links or templates!
-                    template.parse_params(*params.split('|'))
+                    template.parse_params(params)
             if template:
                 if line.startswith('|'):
                     template.parse_params(line[1:])

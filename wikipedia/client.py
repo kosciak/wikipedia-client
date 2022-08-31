@@ -266,14 +266,15 @@ class WikiClient:
             return page
 
     def _get_title(self, title):
-        if title.startswith('https://'):
-            # TODO: extract lang from URL and compare with current client's lang
-            title = title[title.find('/wiki/')+6 :]
-        elif is_link(title):
-            # Follow a links title
-            link = WikiLink.parse(title)
-            if link:
-                title = link.title
+        if isinstance(title, str):
+            if title.startswith('https://'):
+                # TODO: extract lang from URL and compare with current client's lang
+                title = title[title.find('/wiki/')+6 :]
+            elif is_link(title):
+                # Follow a links title
+                title = WikiLink.parse(title)
+        if isinstance(title, WikiLink):
+            title = title.title
         title = urllib.parse.unquote(title)
         return title
 
