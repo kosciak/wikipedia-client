@@ -198,6 +198,10 @@ class WikiPage:
         self._clear_cached()
 
     @property
+    def is_missing(self):
+        return 'missing' in self._data
+
+    @property
     def page_id(self):
         return self._data.get('pageid')
 
