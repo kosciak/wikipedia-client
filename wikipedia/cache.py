@@ -4,8 +4,8 @@ import os
 import os.path
 import json
 
-from .core import WikiPage
 from .core import is_page_id
+from .page import WikiPage
 
 
 log = logging.getLogger('wikipedia.cache')
