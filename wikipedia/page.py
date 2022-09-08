@@ -5,6 +5,7 @@ import dateutil.parser
 from ..geojson import Coordinates
 
 from .template import Template
+from .table import Table
 
 
 log = logging.getLogger('wikipedia.page')
@@ -14,12 +15,10 @@ class WikiPage:
 
     def __init__(self, data):
         self._data = data
-        self._templates = None
-        self._infobox = None
+        self._cache = {}
 
     def _clear_cached(self):
-        self._templates = None
-        self._infobox = None
+        self._cache.clear()
 
     def load(self, client, cache=False):
         page = client.page(self.page_id, cache=cache)
@@ -96,19 +95,25 @@ class WikiPage:
 
     @property
     def templates(self):
-        if self._templates is None and self.has_content:
-            self._templates = list(Template.find_all(self.content))
-        return self._templates
+        if self.has_content and not 'templates' in self._cache:
+            self._cache['templates'] = list(Template.find_all(self.content))
+        return self._cache.get('templates', [])
 
     @property
     def infobox(self):
-        if self._infobox is None and self.has_content:
+        if self.has_content and not 'infobox' in self._cache:
             templates = self.templates or []
             for template in templates:
                 if 'infobox' in template.name.lower():
-                    self._infobox = template
+                    self._cache['infobox'] = template
                     break
-        return self._infobox
+        return self._cache.get('infobox')
+
+    @property
+    def tables(self):
+        if self.has_content and not 'tables' in self._cache:
+            self._cache['tables'] = list(Table.find_all(self.content))
+        return self._cache.get('tables', [])
 
     @property
     def coordinates(self):
