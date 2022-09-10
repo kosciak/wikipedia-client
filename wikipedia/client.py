@@ -301,6 +301,7 @@ class WikiClient:
         cached_page = self._cache.get(
             self.lang, page_id, title,
         )
+        # TODO: This check fails on page redirects when checking by title!
         if check_updates is None:
             check_updates = self.check_updates
         if cached_page and not check_updates:
