@@ -25,15 +25,28 @@ def is_page_id(page_id):
     return False
 
 
-def is_link(link):
-    if not link:
+def is_link(wikitext):
+    if not wikitext:
         return False
-    return link.startswith('[[') and link.endswith(']]') and link.rfind('[[') == 0
+    return wikitext.startswith('[[') and wikitext.endswith(']]') and wikitext.rfind('[[') == 0
 
 
-def parse_text(wikitext):
+def is_template(wikitext):
+    if not wikitext:
+        return False
+    return wikitext.startswith('{{') and wikitext.endswith('}}') and wikitext.rfind('{{') == 0
+
+
+def get_text(wikitext):
+    if not wikitext:
+        return
+    wikitext = wikitext.strip()
     if is_link(wikitext):
         return WikiLink.parse(wikitext).text
+    if is_template(wikitext):
+        wikitext = wikitext.strip('{}')
+        name, sep, text = wikitext.partition('|')
+        return text
     else:
         return wikitext
 
