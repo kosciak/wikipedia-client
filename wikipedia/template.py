@@ -2,6 +2,7 @@ import collections
 import logging
 
 from .core import NESTED_TAGS_START, NESTED_TAGS_END
+from .core import WikitextIterator
 
 
 log = logging.getLogger('wikipedia.template')
@@ -13,8 +14,10 @@ class Template:
         self.name = name
         self.named_params = {}
         self.numbered_params = []
+        self.__last_param = None
 
     def __getitem__(self, key):
+        # See: https://meta.wikimedia.org/wiki/Help:Template#Mix_of_named_and_unnamed_parameters
         if isinstance(key, int):
             return self.named_params.get(
                 str(key),
@@ -33,6 +36,17 @@ class Template:
 
     def keys(self):
         return self.named_params.keys()
+
+    def _append_to_last_param(self, value):
+        if self.__last_param is None:
+            return
+        last_value = self[self.__last_param]
+        if last_value:
+            value = f'{last_value}\n{value}'
+        if str(self.__last_param) in self.named_params:
+            self.named_params[self.__last_param] = value
+        else:
+            self.numbered_params[self.__last_param-1] = value
 
     @classmethod
     def split_params(cls, wikitext):
@@ -57,40 +71,65 @@ class Template:
                 value = value.strip()
                 if value:
                     self.named_params[name] = value
+                    self.__last_param = name
             else:
                 self.numbered_params.append(name)
+                self.__last_param = len(self.numbered_params)
 
     @classmethod
-    def find_all(cls, content):
-        # NOTE: Using deque() so we can push back part of line and parse as new line
-        lines = collections.deque(
-            line.strip() for line
-            in content.splitlines()
-            if line.strip()
-        )
-        lines.reverse()
+    def find_all(cls, wikitext):
         template = None
-        while lines:
-            line = lines.pop()
-            if line.startswith('{{'):
-                # NOTE: Fix {{template|...}}{{another_template
+        lines = WikitextIterator(wikitext)
+        for line in lines:
+
+            inline_template = False
+            if (template is None) and line.startswith('{{'):
+                # Fix for: {{template|...}}{{another_template
+                #          {{template|...}} text {{another_template|...}}
                 end = line.find('}}')
                 start = line.find('{{', 1)
                 if start > end:
-                    lines.append(line[start:])
-                    line = line[:start]
+                    if end > 0:
+                        # NOTE: In reverse order!
+                        lines.push(
+                            line[end+2:start],
+                            line[start:],
+                        )
+                        line = line[:end+2]
+                    else:
+                        lines.push(line[start:])
+                        line = line[:start]
 
+                # TODO: Might still fail with something like: {{template|name={{value|...}}
+                #       and continuation of params on next line
                 name = line.strip('{}')
                 name, has_params, params = name.partition('|')
                 template = Template(name)
+                inline_template = True
                 if has_params:
                     template.parse_params(params)
+
             if template:
                 if line.startswith('|'):
+                    # Start of parameter(s)
                     template.parse_params(line[1:])
-                elif line.startswith('}}') or line.endswith('}}'):
+                elif line.startswith('}}'):
+                    # End of template, rest of the line should be parsed
                     yield template
                     template = None
+                    lines.push(line[2:])
+                elif inline_template and line.endswith('}}'):
+                    # Only for inline templates that start and end on same line
+                    # TODO: Might still fail with something like: {{template|name={{value|...}}
+                    #       and continuation of params on next line
+                    yield template
+                    template = None
+                elif template.named_params or template.numbered_params:
+                    # Line is a continuation of last parsed param
+                    # https://pl.wikipedia.org/wiki/Wis%C5%82a
+                    # https://pl.wikipedia.org/wiki/Ciechocinek
+                    print('...cont...')
+                    template._append_to_last_param(line)
 
     def __repr__(self):
         return f'<{self.__class__.__name__} name="{self.name}">'

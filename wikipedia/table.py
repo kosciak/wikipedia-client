@@ -1,6 +1,8 @@
 import collections
 import logging
 
+from .core import WikitextIterator
+
 
 log = logging.getLogger('wikipedia.table')
 
@@ -21,18 +23,11 @@ class Table:
         return wikitext.split(separator)
 
     @classmethod
-    def find_all(cls, content):
-        # NOTE: Using deque() so we can push back part of line and parse as new line
-        lines = collections.deque(
-            line.strip() for line
-            in content.splitlines()
-            if line.strip()
-        )
-        lines.reverse()
+    def find_all(cls, wikitext):
         table = None
         row = []
-        while lines:
-            line = lines.pop()
+        lines = WikitextIterator(wikitext)
+        for line in lines:
             if line.startswith('{|'):
                 table = Table()
             if table:
