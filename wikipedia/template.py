@@ -128,7 +128,6 @@ class Template:
                     # Line is a continuation of last parsed param
                     # https://pl.wikipedia.org/wiki/Wis%C5%82a
                     # https://pl.wikipedia.org/wiki/Ciechocinek
-                    print('...cont...')
                     template._append_to_last_param(line)
 
     def __repr__(self):

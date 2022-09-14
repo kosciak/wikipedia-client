@@ -49,23 +49,16 @@ class SQLiteDB:
     def __init__(self, fn):
         self.fn = fn
         self._connection = None
-        self._cursor = None
-        self._tables_created = False
 
     @property
     def connection(self):
         if self._connection is None:
             self._connection = sqlite3.connect(self.fn)
+            self._create_tables()
         return self._connection
 
-    @property
-    def cursor(self):
-        if self._cursor is None:
-            self._cursor = self.connection.cursor()
-        return self._cursor
-
     def _create_tables(self):
-        self.cursor.execute('''
+        self.connection.execute('''
             CREATE TABLE IF NOT EXISTS page_meta (
                 lang TEXT NOT NULL,
                 page_id INTEGER NOT NULL,
@@ -74,19 +67,16 @@ class SQLiteDB:
                 PRIMARY KEY (lang, page_id)
             );
         ''')
-        self._tables_created = True
 
     def insert_page_meta(self, lang, page_id, title, revision_id):
-        if not self._tables_created:
-            self._create_tables()
-        self.cursor.execute(
+        self.connection.execute(
             'INSERT OR REPLACE INTO page_meta VALUES (?, ?, ?, ?)',
             (lang, page_id, title, revision_id),
         )
         self.connection.commit()
 
     def get_revision_id(self, lang, page_id):
-        result = self.cursor.execute(
+        result = self.connection.execute(
             'SELECT revision_id FROM page_meta WHERE lang=? AND page_id=?',
             (lang, page_id),
         )
@@ -94,7 +84,7 @@ class SQLiteDB:
             return row[0]
 
     def get_page_id(self, lang, title):
-        result = self.cursor.execute(
+        result = self.connection.execute(
             'SELECT page_id FROM page_meta WHERE lang=? AND title=?',
             (lang, title),
         )
