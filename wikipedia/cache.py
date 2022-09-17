@@ -5,6 +5,8 @@ import os
 import os.path
 import json
 
+from ..utils import sql
+
 from .core import is_page_id
 from .page import WikiPage
 
@@ -16,6 +18,22 @@ WIKI_CACHE_DIR = os.path.join(
     'data',
     'wiki_cache',
 )
+
+
+PAGE_META = sql.Columns(
+    'lang TEXT NOT NULL',
+    'page_id INTEGER NOT NULL',
+    'title TEXT NOT NULL',
+    'revision_id INTEGER NOT NULL',
+)
+
+PAGE_META_TABLE = sql.Table(
+    name='page_meta',
+    columns=PAGE_META,
+).primary_key(PAGE_META.lang, PAGE_META.page_id)
+
+
+Param = sql.QmarkParameter
 
 
 class DbmDB:
@@ -54,42 +72,63 @@ class SQLiteDB:
     def connection(self):
         if self._connection is None:
             self._connection = sqlite3.connect(self.fn)
+            self._connection.row_factory = sqlite3.Row
             self._create_tables()
         return self._connection
 
+    def execute_query(self, query, *params):
+        return self.connection.execute(
+            query.sql(),
+            params,
+        )
+
     def _create_tables(self):
-        self.connection.execute('''
-            CREATE TABLE IF NOT EXISTS page_meta (
-                lang TEXT NOT NULL,
-                page_id INTEGER NOT NULL,
-                title TEXT NOT NULL,
-                revision_id INTEGER NOT NULL,
-                PRIMARY KEY (lang, page_id)
-            );
-        ''')
+        query = PAGE_META_TABLE.create(if_not_exists=True)
+        self.execute_query(query)
 
     def insert_page_meta(self, lang, page_id, title, revision_id):
-        self.connection.execute(
-            'INSERT OR REPLACE INTO page_meta VALUES (?, ?, ?, ?)',
-            (lang, page_id, title, revision_id),
+        param = Param()
+        query = PAGE_META_TABLE.insert(replace=True)
+        query.values(
+            param('lang'), param('page_id'), param('title'), param('revision_id'),
+        )
+        self.execute_query(
+            query,
+            lang, page_id, title, revision_id,
         )
         self.connection.commit()
 
     def get_revision_id(self, lang, page_id):
-        result = self.connection.execute(
-            'SELECT revision_id FROM page_meta WHERE lang=? AND page_id=?',
-            (lang, page_id),
+        param = Param()
+        query = PAGE_META_TABLE.select(
+            PAGE_META.revision_id,
         )
-        for row in result.fetchall():
-            return row[0]
+        query.where(
+            PAGE_META.lang == param('lang'),
+            PAGE_META.page_id == param('page_id'),
+        )
+        results = self.execute_query(
+            query,
+            lang, page_id,
+        )
+        for row in results:
+            return row['revision_id']
 
     def get_page_id(self, lang, title):
-        result = self.connection.execute(
-            'SELECT page_id FROM page_meta WHERE lang=? AND title=?',
-            (lang, title),
+        param = Param()
+        query = PAGE_META_TABLE.select(
+            PAGE_META.page_id,
         )
-        for row in result.fetchall():
-            return row[0]
+        query.where(
+            PAGE_META.lang == param('lang'),
+            PAGE_META.title == param('title'),
+        )
+        results = self.execute_query(
+            query,
+            lang, title,
+        )
+        for row in results:
+            return row['page_id']
 
 
 def dbm_to_sqlite(dbm_db, sqlite_db):
