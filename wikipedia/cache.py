@@ -5,7 +5,7 @@ import os
 import os.path
 import json
 
-from ..utils import sql
+from .. import sql
 
 from .core import is_page_id
 from .page import WikiPage
