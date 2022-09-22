@@ -36,7 +36,60 @@ PAGE_META_TABLE = sql.Table(
 Param = sql.QmarkParameter
 
 
-class DbmDB:
+class PageDB:
+
+    def insert_page(self, page):
+        raise NotImplementedError()
+
+    def get_page(self, page_id):
+        raise NotImplementedError()
+
+
+class PageMetaDB:
+
+    def insert_page_meta(self, lang, page_id, title, revision_id):
+        raise NotImplementedError()
+
+    def get_revision_id(self, lang, page_id):
+        raise NotImplementedError()
+
+    def get_page_id(self, lang, title):
+        raise NotImplementedError()
+
+
+class FilePageDB:
+
+    def __init__(self, cache_dir):
+        self.cache_dir = cache_dir or WIKI_CACHE_DIR
+
+    def get_page_fn(self, lang, page_id):
+        page_fn = os.path.join(
+            self.cache_dir,
+            f'{lang}_{page_id}.json',
+        )
+        return page_fn
+
+    def insert_page(self, page):
+        if not page.page_id:
+            return
+        os.makedirs(self.cache_dir, exist_ok=True)
+        page_fn = self.get_page_fn(page.lang, page.page_id)
+        with open(page_fn, 'w') as f:
+            json.dump(page._data, f, indent=2)
+        self.meta_db.insert_page_meta(
+            page.lang, page.page_id, page.title, page.revision_id,
+        )
+
+    def get_page(self, lang, page_id):
+        if not page_id:
+            return
+        page_fn = self.get_page_fn(lang, page_id)
+        if os.path.exists(page_fn):
+            with open(page_fn, 'r') as f:
+                return WikiPage(json.load(f))
+
+
+class DbmPageMetaDB(PageMetaDB):
 
     def __init__(self, fn):
         self.fn = fn
@@ -62,7 +115,7 @@ class DbmDB:
                 return page_id.decode()
 
 
-class SQLiteDB:
+class SQLitePageMetaDB:
 
     def __init__(self, fn):
         self.fn = fn
@@ -154,53 +207,34 @@ def dbm_to_sqlite(dbm_db, sqlite_db):
 class WikiCache:
 
     def __init__(self, cache_dir=None):
-        self.cache_dir = cache_dir or WIKI_CACHE_DIR
+        cache_dir = cache_dir or WIKI_CACHE_DIR
         # self.db = DbmDB(
         #     os.path.join(self.cache_dir, 'pages.db')
         # )
-        self.db = SQLiteDB(
-            os.path.join(self.cache_dir, 'pages.sqlite')
+        self.meta_db = SQLitePageMetaDB(
+            os.path.join(cache_dir, 'pages.sqlite')
         )
-
-    def get_page_fn(self, lang, page_id):
-        page_fn = os.path.join(
-            self.cache_dir,
-            f'{lang}_{page_id}.json',
-        )
-        return page_fn
+        self.page_db = FilePageDB(cache_dir)
 
     def get_revision_id(self, lang, page_id):
         if not page_id:
             return
-        return self.db.get_revision_id(lang, page_id)
+        return self.meta_db.get_revision_id(lang, page_id)
 
     def has_page(self, lang, page_id, title):
         page_id = page_id or self.get_page_id(lang, title)
         return self.get_revision_id(lang, page_id)
 
-    def get_page_id(self, lang, page):
-        if is_page_id(page):
-            return page
-        page = page.replace('_', ' ')
-        return self.db.get_page_id(lang, page)
+    def get_page_id(self, lang, title):
+        if is_page_id(title):
+            return title
+        title = title.replace('_', ' ')
+        return self.meta_db.get_page_id(lang, title)
 
     def get(self, lang, page_id, title):
         page_id = page_id or self.get_page_id(lang, title)
-        if not page_id:
-            return
-        page_fn = self.get_page_fn(lang, page_id)
-        if os.path.exists(page_fn):
-            with open(page_fn, 'r') as f:
-                return WikiPage(json.load(f))
+        return self.page_db.get_page(lang, page_id)
 
     def insert(self, page):
-        if not page.page_id:
-            return
-        os.makedirs(self.cache_dir, exist_ok=True)
-        page_fn = self.get_page_fn(page.lang, page.page_id)
-        with open(page_fn, 'w') as f:
-            json.dump(page._data, f, indent=2)
-        self.db.insert_page_meta(
-            page.lang, page.page_id, page.title, page.revision_id,
-        )
+        self.page_db.insert_page(page)
 
