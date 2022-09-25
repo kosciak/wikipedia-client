@@ -124,9 +124,9 @@ class WikiClient:
         self._lang = None
         self._api_url = None
         self.set_lang(lang)
-        self._load = load
-        self.check_updates = check_updates
+        self._load_members = load
         self._cache = WikiCache(cache_dir)
+        self._check_updates = check_updates
         self._session = requests.Session()
 
     @property
@@ -226,11 +226,11 @@ class WikiClient:
     def query_category_subcategories(self, category):
         return self.query_category_members(category, 'subcat')
 
-    def _pages_gen(self, pages_data, load=None, check_updates=None):
+    def _pages_gen(self, pages_data, load=False, check_updates=None):
+        if load is None:
+            load = self._load_members
         for data in pages_data:
             page = WikiPage(data)
-            if load is None:
-                load = self._load
             if load:
                 page = self.page(page, check_updates=check_updates)
             yield page
@@ -290,50 +290,57 @@ class WikiClient:
         if isinstance(page, WikiPage):
             return page.revision_id
 
+    def _page(self, page_id, title, params=None):
+        params = params or QUERY_PAGES_FULL
+        if page_id:
+            results = self.query_page_ids(params, page_id)
+        else:
+            results = self.query_page_titles(params, title)
+        for page in self._get_pages(results, load=False):
+            return page
+
+    def _cached_page(self, page_id, title, revision_id, check_updates=None):
+        if check_updates is None:
+            check_updates = self._check_updates
+
+        cached_page = self._cache.get(
+            self.lang, page_id, title,
+        )
+        if not cached_page:
+            return
+
+        if check_updates and not revision_id:
+            # Get minimal data and check if revision_id changed
+            page = self._page(page_id, title, QUERY_PAGES_MINIMAL)
+            if page:
+                revision_id = page.revision_id
+
+        if revision_id and cached_page.revision_id < revision_id:
+            # Cached page is older than given revision_id
+            return
+
+        return cached_page
+
     def page(self, page, check_updates=None):
         page_id = self._get_page_id(page)
         if not page_id:
             title = self._get_title(page)
         else:
             title = None
-        revision_id = self._get_revision_id(page)
 
-        cached_page = self._cache.get(
-            self.lang, page_id, title,
-        )
-        # TODO: This check fails on page redirects when checking by title!
-        if check_updates is None:
-            check_updates = self.check_updates
-        if cached_page and not check_updates:
-            return cached_page
-
-        if revision_id and cached_page:
-            if revision_id > cached_page.revision_id:
-                # We've got older version, need to update
-                cached_page = None
-            else:
-                # No need to call API, we've got latest version
+        if self._cache:
+            revision_id = self._get_revision_id(page)
+            cached_page = self._cached_page(
+                page_id, title, revision_id, check_updates,
+            )
+            if cached_page:
                 return cached_page
 
-        if cached_page:
-            params = QUERY_PAGES_MINIMAL
-        else:
-            params = QUERY_PAGES_FULL
+        page = self._page(page_id, title)
+        if page and self._cache:
+            self._cache.insert(page)
 
-        if page_id:
-            results = self.query_page_ids(params, page_id)
-        else:
-            results = self.query_page_titles(params, title)
-
-        for page in self._get_pages(results):
-            if not cached_page:
-                self._cache.insert(page)
-                return page
-            elif cached_page.revision_id < page.revision_id:
-                # Got MINIMAL params, need to get page with FULL params
-                return self.page(page)
-            else:
-                return cached_page
+        return page
 
     def parse(self, page):
         # TODO: Do I need it? Might need some reworking
