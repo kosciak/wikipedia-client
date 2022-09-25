@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wikipedia-client"
+description = "Wikpedia API client and simple wikitext parser"
+authors = [
+  { name="Wojciech Pietrzok" },
+]
+license = {file = "LICENSE"}
+dynamic = [ "version", "readme", "dependencies" ]
+requires-python = ">=3.6"
+
+[project.urls]
+"Homepage" = "https://github.com/kosciak/wikipedia-client"
+
+[tool.setuptools.dynamic]
+version = {attr = "wikipedia.__version__"}
+readme = {file = ["README.md"]}
+dependencies = {file = ["requirements.txt"]}
+

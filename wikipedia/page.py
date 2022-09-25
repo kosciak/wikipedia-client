@@ -2,8 +2,6 @@ import logging
 
 import dateutil.parser
 
-from ..geojson import Coordinates
-
 from .template import Template
 from .table import Table
 
@@ -119,9 +117,9 @@ class WikiPage:
     def coordinates(self):
         if not 'coordinates' in self._data:
             return
-        return Coordinates(
-            self._data['coordinates'][0]['lat'],
-            self._data['coordinates'][0]['lon'],
+        return dict(
+            lat=self._data['coordinates'][0]['lat'],
+            lon=self._data['coordinates'][0]['lon'],
         )
 
     @property
