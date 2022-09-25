@@ -2,7 +2,7 @@ import logging
 import re
 
 
-log = logging.getLogger('wikipedia.links')
+log = logging.getLogger('wikipedia.parser.links')
 
 
 WIKI_LINK_PATTERN = re.compile(

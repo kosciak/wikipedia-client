@@ -3,10 +3,12 @@ import urllib.parse
 
 import requests
 
-from .core import is_page_id, is_link
-from .links import WikiLink
-from .page import WikiPage
+from .parser.core import is_page_id, is_link
+from .parser.links import WikiLink
+
 from .cache import WikiCache
+
+from .page import WikiPage
 
 
 log = logging.getLogger('wikipedia.client')

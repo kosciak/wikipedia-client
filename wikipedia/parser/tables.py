@@ -4,7 +4,7 @@ import logging
 from .core import WikitextIterator
 
 
-log = logging.getLogger('wikipedia.table')
+log = logging.getLogger('wikipedia.parser.tables')
 
 
 class Table:

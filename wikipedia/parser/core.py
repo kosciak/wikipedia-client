@@ -4,7 +4,7 @@ import logging
 from .links import WikiLink
 
 
-log = logging.getLogger('wikipedia.core')
+log = logging.getLogger('wikipedia.parser.core')
 
 
 NESTED_TAGS_START = {

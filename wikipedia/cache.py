@@ -5,9 +5,10 @@ import os
 import os.path
 import json
 
-from .. import sql
+import sql
 
-from .core import is_page_id
+from .parser.core import is_page_id
+
 from .page import WikiPage
 
 

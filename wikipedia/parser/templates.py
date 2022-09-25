@@ -5,7 +5,7 @@ from .core import NESTED_TAGS_START, NESTED_TAGS_END
 from .core import WikitextIterator
 
 
-log = logging.getLogger('wikipedia.template')
+log = logging.getLogger('wikipedia.parser.templates')
 
 
 class Template:
