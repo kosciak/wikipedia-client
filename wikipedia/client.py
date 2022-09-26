@@ -122,13 +122,13 @@ class WikiClient:
 
     API_URL = 'https://%s.wikipedia.org/w/api.php'
 
-    def __init__(self, lang, load=False, check_updates=False, cache_dir=None):
+    def __init__(self, lang, *, load=False, check_updates=False, **kwargs):
         self._lang = None
         self._api_url = None
         self.set_lang(lang)
         self._load_members = load
-        self._cache = WikiCache(cache_dir)
         self._check_updates = check_updates
+        self._cache = WikiCache(**kwargs)
         self._session = requests.Session()
 
     @property
