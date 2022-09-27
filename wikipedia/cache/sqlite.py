@@ -17,15 +17,15 @@ CACHE_FN = 'pages.sqlite'
 PAGE_META = sql.Columns(
     'lang TEXT NOT NULL',
     'page_id INTEGER NOT NULL',
-    'title TEXT NOT NULL',
     'revision_id INTEGER NOT NULL',
+    'title TEXT NOT NULL',
 )
 
 PAGE_META_TABLE = sql.Table(
-    name='page_meta',
+    name='PageMeta',
     columns=PAGE_META,
 ).primary_key(
-    PAGE_META.lang, PAGE_META.page_id,
+    PAGE_META.lang, PAGE_META.page_id, PAGE_META.revision_id,
 )
 
 
@@ -61,7 +61,7 @@ class SQLitePageMetaDB(PageMetaDB):
         query = PAGE_META_TABLE.create(if_not_exists=True)
         self.execute_query(query)
 
-    def insert_page_meta(self, lang, page_id, title, revision_id):
+    def insert_page_meta(self, lang, page_id, revision_id, title):
         param = Param()
         query = PAGE_META_TABLE.insert({
             PAGE_META.lang: param('lang'),
@@ -84,6 +84,8 @@ class SQLitePageMetaDB(PageMetaDB):
         ).where(
             PAGE_META.lang == param('lang'),
             PAGE_META.page_id == param('page_id'),
+        ).order_by(
+            PAGE_META.revision_id, order=sql.Order.DESC,
         )
         results = self.execute_query(
             query,
@@ -106,4 +108,14 @@ class SQLitePageMetaDB(PageMetaDB):
         )
         for row in results:
             return row['page_id']
+
+    def all_page_meta(self):
+        query = PAGE_META_TABLE.select(
+            PAGE_META.lang, PAGE_META.page_id, PAGE_META.title, PAGE_META.revision_id,
+        )
+        results = self.execute_query(query)
+        for row in results:
+            yield (
+                row['lang'], row['page_id'], row['revision_id'], row['title'],
+            )
 

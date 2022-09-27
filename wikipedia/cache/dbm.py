@@ -21,7 +21,7 @@ class DbmPageMetaDB(PageMetaDB):
     def get_ro_db(self):
         return dbm.open(self.fn, 'r')
 
-    def insert_page_meta(self, lang, page_id, title, revision_id):
+    def insert_page_meta(self, lang, page_id, revision_id, title):
         with dbm.open(self.fn, 'c') as db:
             db[f'title:{lang}:{title}'] = str(page_id)
             db[f'revid:{lang}:{page_id}'] = str(revision_id)
@@ -37,4 +37,25 @@ class DbmPageMetaDB(PageMetaDB):
             page_id = db.get(f'title:{lang}:{title}')
             if page_id:
                 return page_id.decode()
+
+    def all_page_meta(self):
+        titles = {}
+        revision_ids = {}
+
+        with dbm.open(self.fn, 'c') as db:
+            for key in db.keys():
+                if key.startswith(b'title'):
+                    _, lang, title = key.split(b':', 2)
+                    page_id = int(db.get(key))
+                    titles[(lang.decode(), page_id)] = title.decode()
+                elif key.startswith(b'revid'):
+                    _, lang, page_id = key.split(b':')
+                    revision_id = int(db.get(key))
+                    revision_ids[(lang.decode(), int(page_id))] = revision_id
+
+        for (lang, page_id), title in titles.items():
+            revision_id = revision_ids.get((lang, page_id))
+            yield (
+                lang, page_id, revision_id, title,
+            )
 

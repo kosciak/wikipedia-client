@@ -33,12 +33,12 @@ class PageDB(DB):
 
 class PageMetaDB(DB):
 
-    def insert_page_meta(self, lang: str, page_id: int, title: str, revision_id: int):
+    def insert_page_meta(self, lang: str, page_id: int, revision_id: int, title: str):
         raise NotImplementedError()
 
     def insert_meta(self, page: WikiPage):
         return self.insert_page_meta(
-            page.lang, page.page_id, page.title, page.revision_id,
+            page.lang, page.page_id,  page.revision_id,page.title,
         )
 
     def get_revision_id(self, lang: str, page_id: int) -> int:
@@ -47,23 +47,14 @@ class PageMetaDB(DB):
     def get_page_id(self, lang: str, title: str) -> int:
         raise NotImplementedError()
 
+    def all_page_meta(self):
+        # yield (lang, page_id, revision_id, title)
+        raise NotImplementedError()
 
-def convert_meta_db_dbm_to_sqlite(dbm_db, sqlite_db):
-    titles = {}
-    revision_ids = {}
 
-    db = dbm_db.get_ro_db()
-    for key in db.keys():
-        if key.startswith(b'title'):
-            _, lang, title = key.split(b':', 2)
-            page_id = int(db.get(key))
-            titles[(lang.decode(), page_id)] = title.decode()
-        elif key.startswith(b'revid'):
-            _, lang, page_id = key.split(b':')
-            revision_id = int(db.get(key))
-            revision_ids[(lang.decode(), int(page_id))] = revision_id
-
-    for (lang, page_id), title in titles.items():
-        revision_id = revision_ids.get((lang, page_id))
-        sqlite_db.insert_page_meta(lang, page_id, title, revision_id)
+def copy_page_meta_db(source_db, destination_db):
+    for lang, page_id, revision_id, title in source_db.all_page_meta():
+        destination_db.insert_page_meta(
+            lang, page_id, revision_id, title,
+        )
 
