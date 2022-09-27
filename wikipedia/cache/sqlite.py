@@ -28,6 +28,11 @@ PAGE_META_TABLE = sql.Table(
     PAGE_META.lang, PAGE_META.page_id, PAGE_META.revision_id,
 )
 
+INDEXES = [
+    PAGE_META_TABLE.index('PageMeta_page_id_index', PAGE_META.lang, PAGE_META.page_id),
+    PAGE_META_TABLE.index('PageMeta_title_index', PAGE_META.lang, PAGE_META.title),
+]
+
 
 Param = sql.QmarkParameter
 
@@ -49,6 +54,7 @@ class SQLitePageMetaDB(PageMetaDB):
             self._connection = sqlite3.connect(self.fn)
             self._connection.row_factory = sqlite3.Row
             self._create_tables()
+            self._create_indexes()
         return self._connection
 
     def execute_query(self, query, *params):
@@ -60,6 +66,11 @@ class SQLitePageMetaDB(PageMetaDB):
     def _create_tables(self):
         query = PAGE_META_TABLE.create(if_not_exists=True)
         self.execute_query(query)
+
+    def _create_indexes(self):
+        for index in INDEXES:
+            query = index.create(if_not_exists=True)
+            self.execute_query(query)
 
     def insert_page_meta(self, lang, page_id, revision_id, title):
         param = Param()
