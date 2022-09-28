@@ -18,6 +18,7 @@ TABLE_END = '|}'
 
 HEADER_CELLS_SEPARATOR = '!!'
 ROW_CELLS_SEPARATOR = '||'
+ATTRIBUTES_SEPARATOR = '|'
 
 
 class Table:
@@ -32,8 +33,13 @@ class Table:
 
     @classmethod
     def parse_cells(cls, wikitext, separator):
-        # TODO: remove params like class="..." style=".." | <content>
-        return wikitext.split(separator)
+        cells = []
+        for cell in wikitext.split(separator):
+            if ATTRIBUTES_SEPARATOR in cell:
+                # Removing cell attributes: class="...' | cell_content
+                attributes, sep, cell = cell.partition(ATTRIBUTES_SEPARATOR)
+            cells.append(cell.strip())
+        return cells
 
     @classmethod
     def find_all(cls, wikitext):
