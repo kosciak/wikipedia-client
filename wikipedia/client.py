@@ -4,7 +4,7 @@ import urllib.parse
 import requests
 
 from .parser.core import is_page_id, is_link
-from .parser.links import WikiLink
+from .parser import WikiLink
 
 from .cache import WikiCache
 

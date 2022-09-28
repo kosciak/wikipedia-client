@@ -2,8 +2,7 @@ import logging
 
 import dateutil.parser
 
-from .parser.templates import Template
-from .parser.tables import Table
+from .parser import Table, Template
 
 
 log = logging.getLogger('wikipedia.page')
