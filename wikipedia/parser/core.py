@@ -7,16 +7,6 @@ from .links import WikiLink
 log = logging.getLogger('wikipedia.parser.core')
 
 
-NESTED_TAGS_START = {
-    '[[',
-    '{{',
-}
-
-NESTED_TAGS_END = {
-    ']]',
-    '}}',
-}
-
 
 def is_page_id(page_id):
     if isinstance(page_id, int):

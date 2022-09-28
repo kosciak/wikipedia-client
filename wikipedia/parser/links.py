@@ -5,6 +5,11 @@ import re
 log = logging.getLogger('wikipedia.parser.links')
 
 
+# https://en.wikipedia.org/wiki/Help:Link
+
+WIKI_LINK_START = '[['
+WIKI_LINK_END = ']]'
+
 WIKI_LINK_PATTERN = re.compile(
     '\[\[' +
         '(?P<title>[^#|\]]+)?' +

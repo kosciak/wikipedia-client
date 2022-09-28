@@ -1,11 +1,27 @@
 import collections
 import logging
 
-from .core import NESTED_TAGS_START, NESTED_TAGS_END
 from .core import WikitextIterator
 
 
 log = logging.getLogger('wikipedia.parser.templates')
+
+
+# https://en.wikipedia.org/wiki/Help:Template
+
+TEMPLATE_START = '{{'
+TEMPLATE_END = '}}'
+PARAMETER_SEPARATOR = '|'
+
+NESTED_TAGS_START = {
+    '[[',
+    '{{',
+}
+
+NESTED_TAGS_END = {
+    ']]',
+    '}}',
+}
 
 
 class Template:
@@ -58,7 +74,7 @@ class Template:
                 nested_level += 1
             elif sequence in NESTED_TAGS_END:
                 nested_level -= 1
-            if wikitext[i] == '|' and not nested_level:
+            if wikitext[i] == PARAMETER_SEPARATOR and not nested_level:
                 yield wikitext[start:i]
                 start = i+1
         yield wikitext[start:]
@@ -83,11 +99,11 @@ class Template:
         for line in lines:
 
             inline_template = False
-            if (template is None) and line.startswith('{{'):
+            if (template is None) and line.startswith(TEMPLATE_START):
                 # Fix for: {{template|...}}{{another_template
                 #          {{template|...}} text {{another_template|...}}
-                end = line.find('}}')
-                start = line.find('{{', 1)
+                end = line.find(TEMPLATE_END)
+                start = line.find(TEMPLATE_START, 1)
                 if start > end:
                     if end > 0:
                         # NOTE: In reverse order!
@@ -103,22 +119,22 @@ class Template:
                 # TODO: Might still fail with something like: {{template|name={{value|...}}
                 #       and continuation of params on next line
                 name = line.strip('{}')
-                name, has_params, params = name.partition('|')
+                name, has_params, params = name.partition(PARAMETER_SEPARATOR)
                 template = Template(name)
                 inline_template = True
                 if has_params:
                     template.parse_params(params)
 
             if template:
-                if line.startswith('|'):
+                if line.startswith(PARAMETER_SEPARATOR):
                     # Start of parameter(s)
                     template.parse_params(line[1:])
-                elif line.startswith('}}'):
+                elif line.startswith(TEMPLATE_END):
                     # End of template, rest of the line should be parsed
                     yield template
                     template = None
                     lines.push(line[2:])
-                elif inline_template and line.endswith('}}'):
+                elif inline_template and line.endswith(TEMPLATE_END):
                     # Only for inline templates that start and end on same line
                     # TODO: Might still fail with something like: {{template|name={{value|...}}
                     #       and continuation of params on next line
