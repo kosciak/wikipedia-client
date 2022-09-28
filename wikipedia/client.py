@@ -301,7 +301,7 @@ class WikiClient:
         for page in self._get_pages(results, load=False):
             return page
 
-    def _cached_page(self, page_id, title, revision_id, check_updates=None):
+    def _get_cached_page(self, page_id, title, revision_id, check_updates=None):
         if check_updates is None:
             check_updates = self._check_updates
 
@@ -323,6 +323,20 @@ class WikiClient:
 
         return cached_page
 
+    def _cached_page(self, page, page_id, title, check_updates):
+        revision_id = self._get_revision_id(page)
+        cached_page = self._get_cached_page(
+            page_id, title, revision_id, check_updates,
+        )
+        if cached_page:
+            return cached_page
+
+        page = self._page(page_id, title)
+        if page and page.page_id:
+            self._cache.insert(page)
+
+        return page
+
     def page(self, page, check_updates=None):
         page_id = self._get_page_id(page)
         if not page_id:
@@ -331,16 +345,11 @@ class WikiClient:
             title = None
 
         if self._cache:
-            revision_id = self._get_revision_id(page)
-            cached_page = self._cached_page(
-                page_id, title, revision_id, check_updates,
+            page = self._cached_page(
+                page, page_id, title, check_updates,
             )
-            if cached_page:
-                return cached_page
-
-        page = self._page(page_id, title)
-        if page and self._cache:
-            self._cache.insert(page)
+        else:
+            page = self._page(page_id, title)
 
         return page
 
