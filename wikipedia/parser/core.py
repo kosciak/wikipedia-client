@@ -44,12 +44,12 @@ def get_text(wikitext):
 
 class WikitextIterator:
 
-    def __init__(self, wikitext):
+    def __init__(self, wikitext, strip=True, empty=True):
         # NOTE: Using deque() so we can push back part of line and parse as new line
+        self.strip = strip
+        self.empty = empty
         self.lines = collections.deque(
-            line.strip() for line
-            in wikitext.splitlines()
-            if line.strip()
+            wikitext.splitlines()
         )
         self.lines.reverse()
 
@@ -60,7 +60,9 @@ class WikitextIterator:
     def __iter__(self):
         while self.lines:
             line = self.lines.pop()
-            line = line.strip()
-            if line:
-                yield line
+            if self.strip:
+                line = line.strip()
+            if (not self.empty) and (not line):
+                continue
+            yield line
 

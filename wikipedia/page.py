@@ -91,6 +91,12 @@ class WikiPage:
             return self._data['revisions'][0]['slots']['main']['*']
 
     @property
+    def sections(self):
+        if self.has_content and not 'sections' in self._cache:
+            self._cache['sections'] = list(Template.find_all(self.content))
+        return self._cache.get('sections', [])
+
+    @property
     def templates(self):
         if self.has_content and not 'templates' in self._cache:
             self._cache['templates'] = list(Template.find_all(self.content))

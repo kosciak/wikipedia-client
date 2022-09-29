@@ -95,7 +95,7 @@ class Template:
     @classmethod
     def find_all(cls, wikitext):
         template = None
-        lines = WikitextIterator(wikitext)
+        lines = WikitextIterator(wikitext, strip=True, empty=False)
         for line in lines:
 
             inline_template = False

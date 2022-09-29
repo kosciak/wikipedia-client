@@ -39,8 +39,8 @@ class WikiLink:
         return self.label or self.target
 
     @classmethod
-    def parse(cls, link):
-        match = WIKI_LINK_PATTERN.match(link)
+    def parse(cls, wikitext):
+        match = WIKI_LINK_PATTERN.match(wikitext)
         if match:
             return WikiLink(**match.groupdict())
 
