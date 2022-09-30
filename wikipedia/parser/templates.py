@@ -8,6 +8,7 @@ log = logging.getLogger('wikipedia.parser.templates')
 
 
 # https://en.wikipedia.org/wiki/Help:Template
+# https://meta.wikimedia.org/wiki/Help:Template
 
 TEMPLATE_START = '{{'
 TEMPLATE_END = '}}'

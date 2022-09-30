@@ -16,7 +16,7 @@ dependencies = [
   "python-dateutil==2.8.2",
   "sql-query-builder @ git+https://github.com/kosciak/sql-query-builder"
 ]
-requires-python = ">=3.6"
+requires-python = ">=3.8"
 
 [project.urls]
 "Homepage" = "https://github.com/kosciak/wikipedia-client"

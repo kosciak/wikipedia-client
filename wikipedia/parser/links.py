@@ -6,6 +6,7 @@ log = logging.getLogger('wikipedia.parser.links')
 
 
 # https://en.wikipedia.org/wiki/Help:Link
+# https://meta.wikimedia.org/wiki/Help:Link
 
 WIKI_LINK_START = '[['
 WIKI_LINK_END = ']]'

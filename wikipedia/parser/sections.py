@@ -1,18 +1,29 @@
 import collections
+import functools
 import logging
+import re
 
 from .core import WikitextIterator
+
+from .tables import Table
+from .templates import Template
 
 
 log = logging.getLogger('wikipedia.parser.tables')
 
 
 # https://en.wikipedia.org/wiki/Help:Section
+# https://meta.wikimedia.org/wiki/Help:Section
 
 MAX_HEADER_LEVEL = 6
 
-HEADER_START = '='
-HEADER_END = '='
+HEADER_PATTERN = re.compile(
+    '^(?P<level_pre>={1,6})' +
+        '(?P<title>.*?)' +
+    '(?P<level_post>={1,6})\s*?$'
+)
+
+HEADER_TAG = '='
 
 
 class Header:
@@ -23,15 +34,17 @@ class Header:
 
     @classmethod
     def parse(cls, wikitext):
+        # NOTE: This method is more restrictive than using regexp
+        #       As it forces to use matching number of "=" on both sides
         wikitext = wikitext.strip()
         for level in range(MAX_HEADER_LEVEL, 0, -1):
-            tag = HEADER_START*level
+            tag = HEADER_TAG*level
             if wikitext.startswith(tag) and wikitext.endswith(tag):
                 break
         if not level:
             return
 
-        title = wikitext.strip(HEADER_START)
+        title = wikitext[level: level*-1]
         return Header(level, title)
 
     def __repr__(self):
@@ -46,6 +59,19 @@ class Section:
         # TODO: Consider renaming content to wikitext
         self.content = ''
 
+    @property
+    def title(self):
+        if self.header:
+            return self.header.title
+
+    @functools.cached_property
+    def templates(self):
+        return list(Template.find_all(self.content))
+
+    @functools.cached_property
+    def tables(self):
+        return list(Table.find_all(self.content))
+
     @classmethod
     def find_all(cls, wikitext):
         level = None
@@ -54,7 +80,7 @@ class Section:
         content = []
         lines = WikitextIterator(wikitext, strip=False, empty=True)
         for line in lines:
-            if line.startswith(HEADER_START) and line.endswith(HEADER_END):
+            if HEADER_PATTERN.match(line):
                 header = Header.parse(line)
                 if level and header.level > level:
                     sections.append([Section(), ])
@@ -85,10 +111,16 @@ class Section:
 
         return list(sections[0])
 
+    def __repr__(self):
+        if self.header:
+            return f'<{self.__class__.__name__} title="{self.header.title}">'
+        else:
+            return f'<{self.__class__.__name__}>'
+
 
 def tree(sections, level=0):
     for section in sections:
-        print('   '*level, section.header)
+        print('   '*level, section)
         if section.sections:
             tree(section.sections, level+1)
 

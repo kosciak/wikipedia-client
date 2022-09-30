@@ -8,6 +8,7 @@ log = logging.getLogger('wikipedia.parser.tables')
 
 
 # https://en.wikipedia.org/wiki/Help:Table
+# https://www.mediawiki.org/wiki/Help:Tables
 
 TABLE_START = '{|'
 TABLE_CAPTION = '|+'

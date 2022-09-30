@@ -2,7 +2,7 @@ import logging
 
 import dateutil.parser
 
-from .parser import Table, Template
+from .parser import Section, Table, Template
 
 
 log = logging.getLogger('wikipedia.page')
@@ -93,30 +93,28 @@ class WikiPage:
     @property
     def sections(self):
         if self.has_content and not 'sections' in self._cache:
-            self._cache['sections'] = list(Template.find_all(self.content))
+            self._cache['sections'] = list(Section.find_all(self.content))
         return self._cache.get('sections', [])
 
     @property
+    def tables(self):
+        tables = []
+        for section in self.sections:
+            tables.extend(section.tables)
+        return tables
+
+    @property
     def templates(self):
-        if self.has_content and not 'templates' in self._cache:
-            self._cache['templates'] = list(Template.find_all(self.content))
-        return self._cache.get('templates', [])
+        for section in self.sections:
+            yield from section.templates
 
     @property
     def infobox(self):
         if self.has_content and not 'infobox' in self._cache:
-            templates = self.templates or []
-            for template in templates:
+            for template in self.templates:
                 if 'infobox' in template.name.lower():
                     self._cache['infobox'] = template
-                    break
         return self._cache.get('infobox')
-
-    @property
-    def tables(self):
-        if self.has_content and not 'tables' in self._cache:
-            self._cache['tables'] = list(Table.find_all(self.content))
-        return self._cache.get('tables', [])
 
     @property
     def coordinates(self):
