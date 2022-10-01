@@ -9,7 +9,7 @@ from .tables import Table
 from .templates import Template
 
 
-log = logging.getLogger('wikipedia.parser.tables')
+log = logging.getLogger('wikipedia.parser.sections')
 
 
 # https://en.wikipedia.org/wiki/Help:Section
@@ -18,9 +18,11 @@ log = logging.getLogger('wikipedia.parser.tables')
 MAX_HEADER_LEVEL = 6
 
 HEADER_PATTERN = re.compile(
-    '^(?P<level_pre>={1,6})' +
+    '^' +
+    '(?P<level_pre>={1,6})' +
         '(?P<title>.*?)' +
-    '(?P<level_post>={1,6})\s*?$'
+    '(?P<level_post>={1,6})\s*?' +
+    '$'
 )
 
 HEADER_TAG = '='
@@ -67,6 +69,10 @@ class Section:
     @functools.cached_property
     def templates(self):
         return list(Template.find_all(self.content))
+
+    @functools.cached_property
+    def lists(self):
+        return list(List.find_all(self.content))
 
     @functools.cached_property
     def tables(self):

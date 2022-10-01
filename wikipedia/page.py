@@ -97,6 +97,13 @@ class WikiPage:
         return self._cache.get('sections', [])
 
     @property
+    def lists(self):
+        lists = []
+        for section in self.sections:
+            lists.extend(section.lists)
+        return lists
+
+    @property
     def tables(self):
         tables = []
         for section in self.sections:
