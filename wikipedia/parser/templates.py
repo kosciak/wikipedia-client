@@ -1,7 +1,7 @@
 import collections
 import logging
 
-from .core import WikitextIterator
+from .wikitext import WikiText, WikitextIterator
 
 
 log = logging.getLogger('wikipedia.parser.templates')

@@ -3,10 +3,11 @@ import functools
 import logging
 import re
 
-from .core import WikitextIterator
+from .wikitext import WikiText, WikitextIterator
 
 from .tables import Table
 from .templates import Template
+from .lists import List
 
 
 log = logging.getLogger('wikipedia.parser.sections')
@@ -59,7 +60,7 @@ class Section:
         self.header = header
         self.sections = []
         # TODO: Consider renaming content to wikitext
-        self.content = ''
+        self.content = WikiText()
 
     @property
     def title(self):
@@ -84,22 +85,22 @@ class Section:
         sections = collections.deque()
         sections.append([Section(), ])
         content = []
-        lines = WikitextIterator(wikitext, strip=False, empty=True)
+        lines = WikitextIterator(wikitext, empty=True)
         for line in lines:
             if HEADER_PATTERN.match(line):
                 header = Header.parse(line)
                 if level and header.level > level:
                     sections.append([Section(), ])
 
-                sections[-1][-1].content = '\n'.join(content)
+                sections[-1][-1].content = WikiText('\n'.join(content))
                 content.clear()
 
                 while level and header.level < level:
                     subsections = sections.pop()
                     sections[-1][-1].sections = subsections
-                    sections[-1][-1].content = '\n'.join(
+                    sections[-1][-1].content = WikiText('\n'.join(
                         section.content for section in subsections
-                    )
+                    ))
                     level -= 1
 
                 level = header.level
@@ -107,13 +108,13 @@ class Section:
 
             content.append(line)
 
-        sections[-1][-1].content = '\n'.join(content)
+        sections[-1][-1].content = WikiText('\n'.join(content))
         while len(sections) > 1:
             subsections = sections.pop()
             sections[-1][-1].sections = subsections
-            sections[-1][-1].content = '\n'.join(
+            sections[-1][-1].content = WikiText('\n'.join(
                 section.content for section in subsections
-            )
+            ))
 
         return list(sections[0])
 

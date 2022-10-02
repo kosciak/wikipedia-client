@@ -1,4 +1,3 @@
-import collections
 import logging
 
 from .links import WikiLink
@@ -40,29 +39,4 @@ def get_text(wikitext):
         return text
     else:
         return wikitext
-
-
-class WikitextIterator:
-
-    def __init__(self, wikitext, strip=True, empty=True):
-        # NOTE: Using deque() so we can push back part of line and parse as new line
-        self.strip = strip
-        self.empty = empty
-        self.lines = collections.deque(
-            wikitext.splitlines()
-        )
-        self.lines.reverse()
-
-    def push(self, *lines):
-        for line in reversed(lines):
-            self.lines.append(line)
-
-    def __iter__(self):
-        while self.lines:
-            line = self.lines.pop()
-            if self.strip:
-                line = line.strip()
-            if (not self.empty) and (not line):
-                continue
-            yield line
 

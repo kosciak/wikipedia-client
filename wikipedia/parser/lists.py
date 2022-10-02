@@ -2,7 +2,7 @@ import collections
 import logging
 import re
 
-from .core import WikitextIterator
+from .wikitext import WikiText, WikitextIterator
 
 
 log = logging.getLogger('wikipedia.parser.lists')
@@ -21,9 +21,9 @@ ITEM_PATTERN = re.compile(
     '(?P<lists>' +
         '(?P<parents>[#*:;]*)' +
         '(?P<type>[#*:;])' +
-    ')' +
+    ') *' +
     '(?P<content>.*)' +
-    '$'
+    '\s*$'
 )
 
 ORDERED_TAG = '#'
@@ -48,7 +48,7 @@ class List(list):
     @classmethod
     def find_all(cls, wikitext):
         lists = collections.deque()
-        lines = WikitextIterator(wikitext, strip=True, empty=True)
+        lines = WikitextIterator(wikitext, empty=True)
         for line in lines:
             match = ITEM_PATTERN.match(line)
             if not match:
@@ -84,7 +84,7 @@ class List(list):
             yield from cls.sublist_or_yield(lists)
 
     def __repr__(self):
-        return f'<{self.__class__.__name__}>'
+        return f'{self.__class__.__name__}({super().__repr__()})'
 
 
 class OrderedList(List):
@@ -97,17 +97,8 @@ class DescriptionList(List):
     pass
 
 
-class ListItem:
-
-    def __init__(self, content):
-        self.content = content.strip()
-
-    def __repr__(self):
-        return f'<{self.__class__.__name__} "{self.content}">'
-
-    def __str__(self):
-        return self.content
-
+class ListItem(WikiText):
+    pass
 
 class Term(ListItem):
     pass
