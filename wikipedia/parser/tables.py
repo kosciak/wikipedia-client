@@ -87,8 +87,8 @@ def parse_attributes(attributes):
 
 class Cell(WikiText):
 
-    def __new__(cls, s, *, attributes=None):
-        s = super().__new__(cls, s)
+    def __new__(cls, s, *lines, attributes=None):
+        s = super().__new__(cls, s, *lines)
         s.attributes = attributes or {}
         return s
 

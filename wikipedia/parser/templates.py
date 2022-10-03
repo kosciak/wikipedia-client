@@ -60,6 +60,7 @@ class Template:
         last_value = self[self.__last_param]
         if last_value:
             value = f'{last_value}\n{value}'
+            value = WikiText(last_value, value)
         if str(self.__last_param) in self.named_params:
             self.named_params[self.__last_param] = value
         else:
@@ -85,12 +86,12 @@ class Template:
             name, is_named, value = param.partition('=')
             name = name.strip()
             if is_named:
-                value = value.strip()
+                value = WikiText(value.strip())
                 if value:
                     self.named_params[name] = value
                     self.__last_param = name
             else:
-                self.numbered_params.append(name)
+                self.numbered_params.append(WikiText(name))
                 self.__last_param = len(self.numbered_params)
 
     @classmethod
