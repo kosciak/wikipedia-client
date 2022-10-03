@@ -11,11 +11,40 @@ log = logging.getLogger('wikipedia.parser.tables')
 # https://en.wikipedia.org/wiki/Help:Table
 # https://www.mediawiki.org/wiki/Help:Tables
 
-TABLE_START_PATTERN = re.compile('^ *{\|')
-TABLE_CAPTION_PATTERN = re.compile('^ *\|\+')
-TABLE_ROW_PATTERN = re.compile('^ *\|-')
-TABLE_CELL_PATTERN = re.compile('^ *[!|]')
-TABLE_END_PATTERN = re.compile('^ *\|}')
+TABLE_START_PATTERN = re.compile(
+    '^ *' +
+    '{\|' + # {|
+    ' *' +
+    '(?P<attributes>.*?)' + # attributes
+    ' *$'
+)
+
+TABLE_CAPTION_PATTERN = re.compile(
+    '^ *' +
+    '\|\+' + # |+
+    ' *' +
+    '(?P<content>.*?)' + # attributes
+    ' *$'
+)
+
+TABLE_ROW_PATTERN = re.compile(
+    '^ *' +
+    '\|-' + # |-
+    ' *' +
+    '(?P<attributes>.*?)' + # attributes
+    ' *$'
+)
+
+TABLE_CELL_PATTERN = re.compile(
+    '^ *' +
+    '[!|]' +
+    '(?![-+}])' # NOT followed by +, -, }
+)
+
+TABLE_END_PATTERN = re.compile(
+    '^ *' +
+    '\|}'
+)
 
 CELL_PATTERN = re.compile(
     '(?P<type>^[!|]|[!|]{2})' + # Single pipe on beginning of line or two pipes if continuation
@@ -29,6 +58,16 @@ CELL_PATTERN = re.compile(
     '(?=[!|]{2}|$)' # Contents until || or !!
 )
 
+ATTRIBUTE_PATTERN = re.compile(
+    ' *' +
+    '(?P<key>[^ =]+?)' + # key: string without " " or "="
+    '=' +
+    '(["])?' + # might be quoted
+    '(?P<value>(?(2)[^"]+?|[^ ]+?))' + # value: if quoted until next quote, otherwise until " "
+    '(?(2)")' + # if quoted end with quote
+    '(?= |$)'
+)
+
 TABLE_HEADER = '!'
 TABLE_CELL = '|'
 ATTRIBUTES_SEPARATOR = '|'
@@ -36,23 +75,30 @@ HEADER_CELLS_SEPARATOR = '!!'
 ROW_CELLS_SEPARATOR = '||'
 
 
+def parse_attributes(attributes):
+    if not attributes:
+        return {}
+    attrs = {
+        match['key']: match['value']
+        for match in ATTRIBUTE_PATTERN.finditer(attributes)
+    }
+    return attrs
+
+
 class Cell(WikiText):
 
-    def __new__(cls, s, attributes=None):
+    def __new__(cls, s, *, attributes=None):
         s = super().__new__(cls, s)
-        s.attributes = attributes
+        s.attributes = attributes or {}
         return s
 
     @classmethod
     def find_all(cls, wikitext):
         for match in CELL_PATTERN.finditer(wikitext):
-            if TABLE_HEADER in match['type']:
-                cell_cls = Header
-            else:
-                cell_cls = Cell
+            cell_cls = CELL_CLS[match['type']]
             yield cell_cls(
                 match['content'],
-                match['attributes'],
+                attributes=parse_attributes(match['attributes']),
             )
 
 
@@ -62,15 +108,28 @@ class Header(Cell):
 
 class Row(list):
 
+    def __init__(self, iterable=None, /, *, attributes=None):
+        self.attributes = attributes or {}
+        super().__init__(iterable or [])
+
     def __repr__(self):
         return f'{self.__class__.__name__}({super().__repr__()})'
 
 
+CELL_CLS = {
+    '!': Header,
+    '|': Cell,
+    '!!': Header,
+    '||': Cell,
+}
+
+
 class Table:
 
-    def __init__(self):
-        self.caption = None
-        self.rows = []
+    def __init__(self, *, attributes=None, caption=None, rows=None):
+        self.attributes = attributes
+        self.caption = caption
+        self.rows = rows or []
 
     def __iter__(self):
         yield from self.rows
@@ -78,28 +137,44 @@ class Table:
     @classmethod
     def find_all(cls, wikitext):
         table = None
-        cells = []
-        lines = WikitextIterator(wikitext, strip=True, empty=False)
+        row = None
+        lines = WikitextIterator(wikitext, empty=False)
         for line in lines:
-            if TABLE_START_PATTERN.match(line):
+            match = TABLE_START_PATTERN.match(line)
+            if match:
                 # TODO: This is going to fail with nested tables!
-                table = Table()
-                cells.clear()
+                table = Table(
+                    attributes=parse_attributes(match['attributes']),
+                )
+                row = Row()
             if table:
                 if TABLE_END_PATTERN.match(line):
-                    if cells:
-                        table.rows.append(Row(cells))
-                        cells.clear()
+                    # TODO: This is going to fail with nested tables!
+                    if row:
+                        table.rows.append(row)
                     yield table
-                elif TABLE_CAPTION_PATTERN.match(line):
-                    table.caption = line[2:].strip()
-                elif TABLE_ROW_PATTERN.match(line):
-                    if cells:
-                        table.rows.append(Row(cells))
-                        cells.clear()
-                elif TABLE_CELL_PATTERN.match(line):
-                    cells.extend(
+                    table = None
+                    continue
+
+                if TABLE_CELL_PATTERN.match(line):
+                    # TODO: This will work ONLY with single line cells
+                    #       Need support for multiline cell contents
+                    row.extend(
                         Cell.find_all(line)
+                    )
+                    continue
+
+                match = TABLE_CAPTION_PATTERN.match(line)
+                if match:
+                    table.caption = WikiText(match['content'])
+                    continue
+
+                match = TABLE_ROW_PATTERN.match(line)
+                if match:
+                    if row:
+                        table.rows.append(row)
+                    row = Row(
+                        attributes=parse_attributes(match['attributes']),
                     )
 
     def __repr__(self):
