@@ -9,6 +9,11 @@ log = logging.getLogger('wikipedia.parser.wikitext')
 
 class WikiText(str):
 
+    def __new__(cls, s=None):
+        if isinstance(s, collections.abc.Iterable):
+            s = '\n'.join(s)
+        return super().__new__(cls, s)
+
     @property
     def links(self):
         yield from WikiLink.find_all(self)

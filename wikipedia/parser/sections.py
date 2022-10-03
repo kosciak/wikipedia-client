@@ -92,15 +92,15 @@ class Section:
                 if level and header.level > level:
                     sections.append([Section(), ])
 
-                sections[-1][-1].content = WikiText('\n'.join(content))
+                sections[-1][-1].content = WikiText(content)
                 content.clear()
 
                 while level and header.level < level:
                     subsections = sections.pop()
                     sections[-1][-1].sections = subsections
-                    sections[-1][-1].content = WikiText('\n'.join(
+                    sections[-1][-1].content = WikiText(
                         section.content for section in subsections
-                    ))
+                    )
                     level -= 1
 
                 level = header.level
@@ -108,13 +108,13 @@ class Section:
 
             content.append(line)
 
-        sections[-1][-1].content = WikiText('\n'.join(content))
+        sections[-1][-1].content = WikiText(content)
         while len(sections) > 1:
             subsections = sections.pop()
             sections[-1][-1].sections = subsections
-            sections[-1][-1].content = WikiText('\n'.join(
+            sections[-1][-1].content = WikiText(
                 section.content for section in subsections
-            ))
+            )
 
         return list(sections[0])
 
