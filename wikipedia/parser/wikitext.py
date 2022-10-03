@@ -10,7 +10,8 @@ log = logging.getLogger('wikipedia.parser.wikitext')
 class WikiText(str):
 
     def __new__(cls, s=None):
-        if isinstance(s, collections.abc.Iterable):
+        if isinstance(s, collections.abc.Iterable) and \
+           not isinstance(s, str):
             s = '\n'.join(s)
         return super().__new__(cls, s)
 
